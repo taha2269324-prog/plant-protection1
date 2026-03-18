@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مركز وقاية النبات | المهندس طه</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root { --primary: #1b5e20; --secondary: #2e7d32; --accent: #ffd600; --bg: #f4f7f4; --ai-purple: #6a1b9a; --danger: #d32f2f; }
+        body { font-family: 'Cairo', sans-serif; background: var(--bg); margin: 0; color: #333; }
+        header { background: linear-gradient(135deg, var(--primary), #003305); color: white; padding: 20px; text-align: center; border-bottom: 5px solid var(--accent); }
+        .profile-img { width: 90px; height: 90px; border-radius: 50%; border: 3px solid var(--accent); margin-bottom: 10px; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .container { width: 92%; max-width: 600px; margin: 15px auto; padding-bottom: 80px; }
+        
+        /* نظام القفل */
+        #lock-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; color: white; text-align: center; padding-top: 20%; flex-direction: column; align-items: center; }
+        .lock-box { background: white; color: #333; padding: 30px; border-radius: 20px; width: 80%; max-width: 400px; }
+
+        .dashboard { background: white; border-radius: 15px; display: grid; grid-template-columns: repeat(3, 1fr); padding: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .stat-item { text-align: center; }
+        .stat-item span { display: block; font-size: 1.2rem; font-weight: 900; color: var(--primary); }
+        
+        .step-card { background: white; border-radius: 15px; margin-bottom: 15px; border: 1px solid #ddd; overflow: hidden; transition: 0.3s; }
+        .step-header { padding: 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-weight: bold; background: #fff; }
+        .step-number { background: var(--primary); color: white; width: 25px; height: 25px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
+        .step-body { display: none; padding: 20px; border-top: 1px solid #eee; background: #fafafa; }
+        
+        input, textarea { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 10px; margin-bottom: 12px; font-family: 'Cairo'; }
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 12px; font-size: 1rem; font-weight: 900; cursor: pointer; font-family: 'Cairo'; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.3s; }
+        .btn-main { background: var(--primary); color: white; }
+        .btn-ai { background: var(--ai-purple); color: white; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+
+        .chat-box { height: 250px; overflow-y: auto; background: white; border: 1px solid #ddd; padding: 10px; border-radius: 10px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .msg { padding: 10px; border-radius: 10px; font-size: 0.9rem; max-width: 85%; }
+        .msg-bot { background: #f0f0f0; align-self: flex-start; border-right: 4px solid var(--ai-purple); }
+        .msg-user { background: var(--ai-purple); color: white; align-self: flex-end; }
+    </style>
+</head>
+<body>
+
+<div id="lock-screen">
+    <div class="lock-box">
+        <i class="fas fa-lock-alt" style="font-size: 3rem; color: var(--danger); margin-bottom: 15px;"></i>
+        <h2>انتهت الفترة المجانية</h2>
+        <p>لقد استهلكت جميع الاستشارات المجانية. يرجى تفعيل الاشتراك لمواصلة استخدام خدمات المركز.</p>
+        <a href="https://wa.me/970599496139" class="btn btn-main" style="background:#25d366"><i class="fab fa-whatsapp"></i> تواصل للتفعيل الآن</a>
+        <button onclick="checkKey()" style="margin-top:10px; background:none; border:none; color:blue; text-decoration:underline; cursor:pointer;">لديك كود تفعيل؟</button>
+    </div>
+</div>
+
+<header>
+    <img src="profile.jpg" alt="المهندس طه" class="profile-img">
+    <h1>مركز وقاية النبات</h1>
+    <div style="font-size: 0.9rem; opacity: 0.9;">بإشراف المهندس طه | غزة 2026</div>
+</header>
+
+<div class="container">
+    <div class="dashboard">
+        <div class="stat-item"><span id="remCount">3</span><label>مجانية</label></div>
+        <div class="stat-item"><span id="totalSent">0</span><label>طلباتك</label></div>
+        <div class="stat-item"><span id="statusIcon" style="color:var(--danger)"><i class="fas fa-times-circle"></i></span><label>الاشتراك</label></div>
+    </div>
+
+    <div class="step-card">
+        <div class="step-header" onclick="toggleStep('step1'); initMap();">
+            <div class="step-number">1</div>
+            <span>رصد موقع الأرض (GPS)</span>
+        </div>
+        <div id="step1" class="step-body">
+            <p style="font-size:0.8rem; color:#666;">اضغط على موقع أرضك في الخريطة لنعرف المنطقة ونوع التربة:</p>
+            <div id="map" style="height: 200px; width: 100%; border-radius: 10px;"></div>
+            <p id="coordsText" style="text-align:center; font-weight:bold; margin:10px 0; color:var(--secondary);">لم يتم تحديد الموقع</p>
+            <button class="btn btn-main" onclick="toggleStep('step2')">التالي: استشارة الذكاء الاصطناعي</button>
+        </div>
+    </div>
+
+    <div class="step-card" style="border: 2px solid var(--ai-purple);">
+        <div class="step-header" onclick="toggleStep('step2')" style="color:var(--ai-purple)">
+            <div class="step-number" style="background:var(--ai-purple)">2</div>
+            <span>المستشار الذكي (إجابة فورية)</span>
+        </div>
+        <div id="step2" class="step-body">
+            <div class="chat-box" id="chatBox">
+                <div class="msg msg-bot">أنا المهندس الذكي، كيف يمكنني مساعدتك في محصولك اليوم؟</div>
+            </div>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="aiInp" placeholder="اسأل عن أي مرض أو آفة..." style="margin:0;">
+                <button onclick="askAI()" id="aiBtn" class="btn btn-ai" style="width:60px;"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="step-card">
+        <div class="step-header" onclick="toggleStep('step3')">
+            <div class="step-number">3</div>
+            <span>طلب فحص من المهندس طه</span>
+        </div>
+        <div id="step3" class="step-body">
+            <div id="formSection">
+                <input type="text" id="fName" placeholder="الاسم الكامل">
+                <input type="tel" id="fPhone" placeholder="رقم الجوال">
+                <textarea id="fIssue" rows="3" placeholder="صف المشكلة بدقة (مثلاً: بقع صفراء على أوراق البندورة)"></textarea>
+                <button onclick="sendOrder()" id="sendBtn" class="btn btn-main">إرسال الطلب للمراجعة</button>
+            </div>
+            <div id="successMsg" style="display:none; text-align:center;">
+                <i class="fas fa-check-circle" style="font-size:3rem; color:green;"></i>
+                <p>تم الإرسال! سيقوم المهندس طه بمراجعة طلبك والرد خلال 24 ساعة.</p>
+                <button class="btn btn-main" onclick="location.reload()">طلب جديد</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // إعدادات أساسية
+    const API_URL = "https://script.google.com/macros/s/AKfycbySyMFqcxflGjbiuhVtrR0Rowlfh5B3zTMTlRmw7tbWH6Kmio0pOYLBikRBv16tLOGw/exec";
+    const GEMINI_API = "AIzaSyDL28kX8nwNroUCtWMnZr3yJh9hK_lcYL8"; // مفتاحك
+    
+    let usageCount = parseInt(localStorage.getItem('taha_usage')) || 0;
+    let isSubscribed = localStorage.getItem('taha_active') === 'true';
+    let map, marker, coords = "لم يتم التحديد";
+
+    function updateUI() {
+        document.getElementById('totalSent').innerText = usageCount;
+        const rem = 3 - usageCount;
+        document.getElementById('remCount').innerText = isSubscribed ? "∞" : Math.max(0, rem);
+        
+        if (isSubscribed) {
+            document.getElementById('statusIcon').innerHTML = '<i class="fas fa-check-circle" style="color:green"></i>';
+            document.getElementById('statusIcon').parentElement.children[1].innerText = "نشط";
+        }
+
+        // قفل التطبيق إذا انتهت الاستشارات
+        if (!isSubscribed && usageCount >= 3) {
+            document.getElementById('lock-screen').style.display = 'flex';
+        }
+    }
+
+    function toggleStep(id) {
+        document.querySelectorAll('.step-body').forEach(b => b.style.display = 'none');
+        document.getElementById(id).style.display = 'block';
+    }
+
+    function initMap() {
+        if (map) return;
+        map = L.map('map').setView([31.42, 34.38], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        map.on('click', e => {
+            if (marker) map.removeLayer(marker);
+            marker = L.marker(e.latlng).addTo(map);
+            coords = `${e.latlng.lat.toFixed(4)},${e.latlng.lng.toFixed(4)}`;
+            document.getElementById('coordsText').innerText = "تم رصد الموقع: " + coords;
+        });
+    }
+
+    // ذكاء اصطناعي متطور
+    async function askAI() {
+        const btn = document.getElementById('aiBtn');
+        const inp = document.getElementById('aiInp');
+        const query = inp.value.trim();
+        if (!query) return;
+
+        addChat('msg-user', query);
+        inp.value = "";
+        btn.disabled = true;
+
+        try {
+            const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ contents: [{ parts: [{ text: `أنت خبير زراعي في غزة. أجب بلهجة فلسطينية بسيطة وعلمية عن: ${query}` }] }] })
+            });
+            const data = await resp.json();
+            const text = data.candidates[0].content.parts[0].text;
+            addChat('msg-bot', text.replace(/\*/g, ''));
+            
+            usageCount++;
+            localStorage.setItem('taha_usage', usageCount);
+            updateUI();
+        } catch (e) {
+            addChat('msg-bot', "عذراً، حدث خطأ في الاتصال. حاول ثانية.");
+        }
+        btn.disabled = false;
+    }
+
+    function addChat(cls, txt) {
+        const box = document.getElementById('chatBox');
+        const div = document.createElement('div');
+        div.className = `msg ${cls}`;
+        div.innerText = txt;
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    // إرسال الطلب مع معالجة حالة الزر
+    async function sendOrder() {
+        const btn = document.getElementById('sendBtn');
+        const originalText = btn.innerHTML;
+        
+        // التحقق من البيانات
+        if (!document.getElementById('fName').value) return alert("يرجى كتابة الاسم");
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...';
+
+        const params = new URLSearchParams({
+            action: document.getElementById('fName').value,
+            phone: document.getElementById('fPhone').value,
+            cropName: "موقع: " + coords,
+            notes: document.getElementById('fIssue').value
+        });
+
+        try {
+            await fetch(API_URL, { method: 'POST', body: params });
+            document.getElementById('formSection').style.display = 'none';
+            document.getElementById('successMsg').style.display = 'block';
+            usageCount++;
+            localStorage.setItem('taha_usage', usageCount);
+            updateUI();
+        } catch (e) {
+            alert("حدث خطأ أثناء الإرسال. تأكد من اتصالك بالإنترنت.");
+        } finally {
+            // إعادة الزر لحالته حتى لو فشل
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    function checkKey() {
+        const key = prompt("أدخل كود التفعيل المكون من 6 أرقام:");
+        if (key === "226932") { // كود افتراضي يمكنك تغييره
+            localStorage.setItem('taha_active', 'true');
+            location.reload();
+        } else {
+            alert("الكود غير صحيح!");
+        }
+    }
+
+    updateUI();
+</script>
+
+</body>
+  </html>
+  
